@@ -1,0 +1,8 @@
+# database volume
+postgres/data/
+# data, logs, or other that should not be committed
+data/
+# JetBrains IDE files
+.idea/
+# private environment variables
+.env
