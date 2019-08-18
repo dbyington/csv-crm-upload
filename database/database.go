@@ -62,11 +62,13 @@ func NewDB(user, password, host, database string) (*dbase, error) {
 	return &dbase{sqlDB: d}, nil
 }
 
+// InsertCustomer takes a single Customer JSON object in byte slice form to insert into the database.
 func (d *dbase) InsertCustomer(customer []byte) error {
 	s := &templateFields{Single: string(customer)}
 	return d.insert(s)
 }
 
+// InsertCustomerSet takes a byte slice containing a JSON formatted array of Customer JSON objects to do a bulk insert.
 func (d *dbase) InsertCustomerSet(customerSet []byte) error {
 	s := &templateFields{Set: string(customerSet)}
 	return d.insert(s)
@@ -100,6 +102,7 @@ func (d *dbase) insert(s *templateFields) error {
 	return nil
 }
 
+// SelectCustomersForUpload returns a slice of *Customer structs suitable to be marshaled and uploaded to CRM.
 func (d *dbase) SelectCustomersForUpload() ([]*Customer, error) {
 	var customers []*Customer
 
@@ -120,6 +123,7 @@ func (d *dbase) SelectCustomersForUpload() ([]*Customer, error) {
 	return customers, nil
 }
 
+// UpdateUploaded is used to set the status of a customer record in the database to "uploaded".
 func (d *dbase) UpdateUploaded(email []byte) error {
     tx, err := d.sqlDB.Begin()
     if err != nil {
