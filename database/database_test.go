@@ -29,14 +29,14 @@ var (
 
 var _ = Describe("Database", func() {
 	var (
-		expectedCustomer1 = &Customer{
+		expectedCustomer1 = &customer{
 			Id:        1,
 			FirstName: "jon",
 			LastName:  "doe",
 			Email:     "jon.doe@mail.com",
 			Phone:     "+1 212 555 1234",
 		}
-		expectedCustomer2 = &Customer{
+		expectedCustomer2 = &customer{
 			Id:        2,
 			FirstName: "jane",
 			LastName:  "doe",
@@ -66,7 +66,7 @@ var _ = Describe("Database", func() {
 	})
 
 	Context("NewCustomer", func() {
-		var testCustomer *Customer
+		var testCustomer *customer
 
 		Context("when called", func() {
 			BeforeEach(func() {
@@ -80,8 +80,8 @@ var _ = Describe("Database", func() {
 	})
 
 	Context("NewCustomers", func() {
-		var testCustomers *Customers
-		expectedCustomers := new(Customers)
+		var testCustomers *customers
+		expectedCustomers := new(customers)
 
 		AfterEach(func() {
 			expectedCustomers = nil
@@ -104,7 +104,7 @@ var _ = Describe("Database", func() {
 			})
 
 			It("should return an empty set of customers", func() {
-				Expect(testCustomers).To(BeEquivalentTo(&Customers{}))
+				Expect(testCustomers).To(BeEquivalentTo(&customers{}))
 			})
 		})
 	})
@@ -198,12 +198,12 @@ var _ = Describe("Database", func() {
 	Context("Customer.Insert", func() {
 		var (
 			expectedInsert = `INSERT INTO customers`
-			testCustomer   *Customer
+			testCustomer   *customer
 		)
 
 		BeforeEach(func() {
 			db = dbMock
-			testCustomer = &Customer{
+			testCustomer = &customer{
 				Id:        1,
 				FirstName: "jon",
 				LastName:  "doe",
@@ -230,16 +230,16 @@ var _ = Describe("Database", func() {
 		})
 	})
 
-	Context("Customers.Insert", func() {
+	Context("customers.Insert", func() {
 		var (
 			expectedInsert = `INSERT INTO customers`
-			testCustomers  = &Customers{}
+			testCustomers  = &customers{}
 		)
 
 		BeforeEach(func() {
 			db = dbMock
 
-			*testCustomers = append(*testCustomers, &Customer{
+			*testCustomers = append(*testCustomers, &customer{
 				Id:        1,
 				FirstName: "jon",
 				LastName:  "doe",
@@ -267,8 +267,8 @@ var _ = Describe("Database", func() {
 	})
 
 	Context(".Append", func() {
-        var testCustomers = &Customers{}
-        var expectedCustomers = &Customers{}
+        var testCustomers = &customers{}
+        var expectedCustomers = &customers{}
 
         BeforeEach(func() {
             *expectedCustomers = append(*expectedCustomers, expectedCustomer1, expectedCustomer2)
@@ -283,7 +283,7 @@ var _ = Describe("Database", func() {
     })
 
 	Context(".Count", func() {
-        var testCustomers = &Customers{}
+        var testCustomers = &customers{}
 
         Context("with no customers", func() {
             It("should return 0", func() {
@@ -304,7 +304,7 @@ var _ = Describe("Database", func() {
 
 	Context("SelectCustomersForUpload", func() {
 		var expectedRows *sqlmock.Rows
-		var rowsReturned *Customers
+		var rowsReturned *customers
 
 		BeforeEach(func() {
 			db = dbMock
@@ -363,10 +363,10 @@ var _ = Describe("Database", func() {
 	})
 
 	Context(".Uploaded", func() {
-		var testCustomer *Customer
+		var testCustomer *customer
 		BeforeEach(func() {
 			db = dbMock
-			testCustomer = &Customer{
+			testCustomer = &customer{
 				Id:        1,
 				FirstName: "jon",
 				LastName:  "doe",
