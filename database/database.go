@@ -26,7 +26,7 @@ var (
 )
 
 // Customer describes a CRM customer
-type Customer struct {
+type customer struct {
 	Id        int64  `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -34,8 +34,20 @@ type Customer struct {
 	Phone     string `json:"phone"`
 }
 
-// Customers is a slice of *Customer
-type Customers []*Customer
+type Customer interface {
+    Insert() error
+    Uploaded() error
+}
+
+// customers is a slice of *Customer
+type customers []*customer
+
+type Customers interface {
+    Append(*customer)
+    Count() int
+    Insert() error
+    List() []*customer
+}
 
 type templateFields struct {
 	JSON string
@@ -58,8 +70,8 @@ func Open(user, password, host, database string) {
 }
 
 // NewCustomer returns a *Customer based on the supplied Customer type values.
-func NewCustomer(id int64, firstName, lastName, email, phone string) *Customer {
-	return &Customer{
+func NewCustomer(id int64, firstName, lastName, email, phone string) *customer {
+	return &customer{
 		id,
 		firstName,
 		lastName,
@@ -68,9 +80,9 @@ func NewCustomer(id int64, firstName, lastName, email, phone string) *Customer {
 	}
 }
 
-// NewCustomers creates a *Customers object consisting of the optionally supplied *Customer objects.
-func NewCustomers(customerList ...*Customer) *Customers {
-	customers := &Customers{}
+// NewCustomers creates a *customers object consisting of the optionally supplied *Customer objects.
+func NewCustomers(customerList ...*customer) *customers {
+	customers := &customers{}
 	for _, customer := range customerList {
 		*customers = append(*customers, customer)
 	}
@@ -79,7 +91,7 @@ func NewCustomers(customerList ...*Customer) *Customers {
 }
 
 // Insert performs the database insert of a single customer object.
-func (c *Customer) Insert() error {
+func (c *customer) Insert() error {
 	jsonBytes, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("while marshaling customer: %s", err)
@@ -96,18 +108,22 @@ func (c *Customer) Insert() error {
 	return insert(b.Bytes())
 }
 
-// Append adds the supplied *Customer to the *Customers set.
-func (c *Customers) Append(customer *Customer) {
+// Append adds the supplied *Customer to the *customers set.
+func (c *customers) Append(customer *customer) {
     *c = append(*c, customer)
 }
 
-// Count returns the number of *Customer in the *Customers set.
-func (c *Customers) Count() int {
+// Count returns the number of *Customer in the *customers set.
+func (c *customers) Count() int {
     return len(*c)
 }
 
+func (c *customers) List() []*customer {
+    return *c
+}
+
 // Insert performs the database insert with a set of customer objects
-func (c *Customers) Insert() error {
+func (c *customers) Insert() error {
 	jsonBytes, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("while marshaling customer: %s", err)
@@ -148,9 +164,9 @@ func insert(b []byte) error {
 	return nil
 }
 
-// SelectCustomersForUpload returns a *Customers struct suitable to be unmarshaled and uploaded to CRM.
-func SelectCustomersForUpload() (*Customers, error) {
-	customers := new(Customers)
+// SelectCustomersForUpload returns a *customers struct suitable to be unmarshaled and uploaded to CRM.
+func SelectCustomersForUpload() (*customers, error) {
+	customers := new(customers)
 
 	rows, err := db.Query(selectUploadedFalse)
 	if err != nil {
@@ -158,7 +174,7 @@ func SelectCustomersForUpload() (*Customers, error) {
 	}
 
 	for rows.Next() {
-		c := new(Customer)
+		c := new(customer)
 		err := rows.Scan(&c.Id, &c.FirstName, &c.LastName, &c.Email, &c.Phone)
 		if err != nil {
 			return nil, fmt.Errorf("while scanning rows: %s", err)
@@ -171,7 +187,7 @@ func SelectCustomersForUpload() (*Customers, error) {
 }
 
 // Uploaded is used to set the status of a customer record in the database to "uploaded".
-func (c *Customer) Uploaded() error {
+func (c *customer) Uploaded() error {
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("while starting update: %s", err)
