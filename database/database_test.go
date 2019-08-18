@@ -1,18 +1,17 @@
 package database
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-
 	"github.com/DATA-DOG/go-sqlmock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 const (
-	database            = `crm_test`
+	database            = `crm`
 	host                = `localhost`
 	goodCustomerJSON    = `{ "id": 1, "first_name": "jon", "last_name": "doe", "email": "jdoe@mail.com", "phone": "+1 212 555 1234"}`
 	goodCustomerSetJSON = `[ { "id": 1, "first_name": "jon", "last_name": "doe", "email": "jon.doe@mail.com", "phone": "+1 212 555 1234"},
@@ -21,9 +20,6 @@ const (
 )
 
 var (
-	password string
-	user     string
-
 	err     error
 	errTest = errors.New("test error")
 
@@ -31,60 +27,114 @@ var (
 	mockDB sqlmock.Sqlmock
 )
 
-func init() {
-	password = os.Getenv("POSTGRES_CSV_PASSWORD")
-	user = os.Getenv("POSTGRES_CSV_USER")
-}
-
 var _ = Describe("Database", func() {
 	var (
-		d *dbase
+		expectedCustomer1 = &Customer{
+			Id:        1,
+			FirstName: "jon",
+			LastName:  "doe",
+			Email:     "jon.doe@mail.com",
+			Phone:     "+1 212 555 1234",
+		}
+		expectedCustomer2 = &Customer{
+			Id:        2,
+			FirstName: "jane",
+			LastName:  "doe",
+			Email:     "jane.doe@mail.com",
+			Phone:     "+1 212 555 4321",
+		}
 	)
 
 	BeforeEach(func() {
 		dbMock, mockDB, err = sqlmock.New()
 	})
 
-	Context("NewDB", func() {
+	Context("Open", func() {
+		BeforeEach(func() {
+			db = nil
+		})
 
-		Context("with valid database setup", func() {
+		Context("when called", func() {
 			BeforeEach(func() {
-				d, err = NewDB(user, password, host, database)
+				Open("postgres", "postgres", host, database)
 			})
 
-			AfterEach(func() {
-				d = nil
-			})
-
-			It("should return a database", func() {
-				Expect(err).ToNot(HaveOccurred())
-				Expect(d.sqlDB).ToNot(BeNil())
+			It("should open the database", func() {
+				Expect(db).ToNot(BeNil())
 			})
 		})
 	})
 
-	Context(".insert", func() {
+	Context("NewCustomer", func() {
+		var testCustomer *Customer
+
+		Context("when called", func() {
+			BeforeEach(func() {
+				testCustomer = NewCustomer(1, "jon", "doe", "jon.doe@mail.com", "+1 212 555 1234")
+			})
+
+			It("should return a customer", func() {
+				Expect(testCustomer).To(BeEquivalentTo(expectedCustomer1))
+			})
+		})
+	})
+
+	Context("NewCustomers", func() {
+		var testCustomers *Customers
+		expectedCustomers := new(Customers)
+
+		AfterEach(func() {
+			expectedCustomers = nil
+		})
+
+		Context("when called with customers", func() {
+			BeforeEach(func() {
+				*expectedCustomers = append(*expectedCustomers, expectedCustomer1, expectedCustomer2)
+				testCustomers = NewCustomers(expectedCustomer1, expectedCustomer2)
+			})
+
+			It("should return a set of customers", func() {
+				Expect(testCustomers).To(BeEquivalentTo(expectedCustomers))
+			})
+		})
+
+		Context("when called without customers", func() {
+			BeforeEach(func() {
+				testCustomers = NewCustomers()
+			})
+
+			It("should return an empty set of customers", func() {
+				Expect(testCustomers).To(BeEquivalentTo(&Customers{}))
+			})
+		})
+	})
+
+	Context("insert", func() {
 		var (
 			expectedInsert = `INSERT INTO customers`
 		)
 
 		BeforeEach(func() {
-			d = &dbase{sqlDB: dbMock}
+			db = dbMock
 		})
 
 		AfterEach(func() {
-			d = nil
+			db = nil
 		})
 
 		Context("with a single good customer", func() {
 			BeforeEach(func() {
-				s := &templateFields{Single: goodCustomerJSON}
+				s := &templateFields{JSON: goodCustomerJSON}
+				b := new(bytes.Buffer)
+				err = insertCustomerTemplate.Execute(b, s)
+				Expect(err).ToNot(HaveOccurred())
 
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec(expectedInsert).WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
-				err = d.insert(s)
+				err = insert(b.Bytes())
 			})
+
 			It("should insert the customer", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 			})
@@ -92,13 +142,17 @@ var _ = Describe("Database", func() {
 
 		Context("with a good customer set", func() {
 			BeforeEach(func() {
-				s := &templateFields{Set: goodCustomerSetJSON}
+				s := &templateFields{JSON: goodCustomerSetJSON}
+				b := new(bytes.Buffer)
+				err = insertCustomerSetTemplate.Execute(b, s)
+				Expect(err).ToNot(HaveOccurred())
 
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec(expectedInsert).WillReturnResult(sqlmock.NewResult(3, 3))
 				mockDB.ExpectCommit()
-				err = d.insert(s)
+				err = insert(b.Bytes())
 			})
+
 			It("should insert the customer", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 			})
@@ -106,11 +160,15 @@ var _ = Describe("Database", func() {
 
 		Context("with transaction begin failure", func() {
 			BeforeEach(func() {
-				s := &templateFields{Single: goodCustomerJSON}
+				s := &templateFields{JSON: goodCustomerJSON}
+				b := new(bytes.Buffer)
+				err = insertCustomerTemplate.Execute(b, s)
+				Expect(err).ToNot(HaveOccurred())
 
 				mockDB.ExpectBegin().WillReturnError(errTest)
-				err = d.insert(s)
+				err = insert(b.Bytes())
 			})
+
 			It("should insert the customer", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 				Expect(err).To(MatchError(fmt.Errorf("while creating transaction: %s", errTest)))
@@ -119,13 +177,17 @@ var _ = Describe("Database", func() {
 
 		Context("with a bad customer json string", func() {
 			BeforeEach(func() {
-				s := &templateFields{Single: "bad customer"}
+				s := &templateFields{JSON: "bad customer"}
+				b := new(bytes.Buffer)
+				err = insertCustomerTemplate.Execute(b, s)
+				Expect(err).ToNot(HaveOccurred())
 
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec(expectedInsert).WillReturnError(errTest)
 				mockDB.ExpectRollback()
-				err = d.insert(s)
+				err = insert(b.Bytes())
 			})
+
 			It("should return an error", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 				Expect(err).To(MatchError(fmt.Errorf("executing query: %s", errTest)))
@@ -133,17 +195,25 @@ var _ = Describe("Database", func() {
 		})
 	})
 
-	Context(".InsertCustomer", func() {
+	Context("Customer.Insert", func() {
 		var (
 			expectedInsert = `INSERT INTO customers`
+			testCustomer   *Customer
 		)
 
 		BeforeEach(func() {
-			d = &dbase{sqlDB: dbMock}
+			db = dbMock
+			testCustomer = &Customer{
+				Id:        1,
+				FirstName: "jon",
+				LastName:  "doe",
+				Email:     "jon.doe@mail.com",
+				Phone:     "+1 212 555 1234",
+			}
 		})
 
 		AfterEach(func() {
-			d = nil
+			db = nil
 		})
 
 		Context("with a single good customer", func() {
@@ -151,25 +221,35 @@ var _ = Describe("Database", func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec(expectedInsert).WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
-				err = d.InsertCustomer([]byte(goodCustomerJSON))
+				err = testCustomer.Insert()
 			})
+
 			It("should insert the customer", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 			})
 		})
 	})
 
-	Context(".InsertCustomerSet", func() {
+	Context("Customers.Insert", func() {
 		var (
 			expectedInsert = `INSERT INTO customers`
+			testCustomers  = &Customers{}
 		)
 
 		BeforeEach(func() {
-			d = &dbase{sqlDB: dbMock}
+			db = dbMock
+
+			*testCustomers = append(*testCustomers, &Customer{
+				Id:        1,
+				FirstName: "jon",
+				LastName:  "doe",
+				Email:     "jon.doe@mail.com",
+				Phone:     "+1 212 555 1234",
+			})
 		})
 
 		AfterEach(func() {
-			d = nil
+			db = nil
 		})
 
 		Context("with a good customer set", func() {
@@ -177,24 +257,41 @@ var _ = Describe("Database", func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec(expectedInsert).WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
-				err = d.InsertCustomerSet([]byte(goodCustomerSetJSON))
+				err = testCustomers.Insert()
 			})
+
 			It("should insert the customer", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 			})
 		})
 	})
 
-	Context(".SelectCustomersForUpload", func() {
+	Context(".Append", func() {
+        var testCustomers = &Customers{}
+        var expectedCustomers = &Customers{}
+
+        BeforeEach(func() {
+            *expectedCustomers = append(*expectedCustomers, expectedCustomer1, expectedCustomer2)
+            *testCustomers = append(*testCustomers, expectedCustomer1)
+
+            testCustomers.Append(expectedCustomer2)
+        })
+
+        It("should add the supplied customer", func() {
+            Expect(testCustomers).To(BeEquivalentTo(expectedCustomers))
+        })
+    })
+
+	Context("SelectCustomersForUpload", func() {
 		var expectedRows *sqlmock.Rows
-		var rowsReturned []*Customer
+		var rowsReturned *Customers
 
 		BeforeEach(func() {
-			d = &dbase{sqlDB: dbMock}
+			db = dbMock
 		})
 
 		AfterEach(func() {
-			d = nil
+			db = nil
 		})
 
 		Context("with a successful select", func() {
@@ -204,21 +301,21 @@ var _ = Describe("Database", func() {
 					AddRow(2, "jane", "doe", "jane.doe@mail.com", "+1 212 555 4321").
 					AddRow(3, "steve", "stevenson", "steves@mail.com", "+1 503 555 5522")
 				mockDB.ExpectQuery("SELECT id, first_name, last_name, email, phone FROM customers WHERE uploaded = false").WillReturnRows(expectedRows)
-				rowsReturned, err = d.SelectCustomersForUpload()
+				rowsReturned, err = SelectCustomersForUpload()
 			})
 
 			It("should return customers needing to be uploaded", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rowsReturned).ToNot(BeNil())
-				Expect(len(rowsReturned)).To(Equal(3))
+				Expect(len(*rowsReturned)).To(Equal(3))
 			})
 		})
 
 		Context("when an error occurs selecting rows", func() {
 			BeforeEach(func() {
 				mockDB.ExpectQuery("SELECT id, first_name, last_name, email, phone FROM customers WHERE uploaded = false").WillReturnError(errTest)
-				rowsReturned, err = d.SelectCustomersForUpload()
+				rowsReturned, err = SelectCustomersForUpload()
 			})
 
 			It("should return a select error", func() {
@@ -231,55 +328,63 @@ var _ = Describe("Database", func() {
 		Context("when an error occurs scanning rows", func() {
 			BeforeEach(func() {
 				expectedRows = sqlmock.NewRows([]string{"id", "first_name", "last_name", "email", "phone"}).
-					AddRow(1, "jon", "doe", "jdoe@mail.com", "+1 212 555 1234").
-					RowError(0, errTest)
+					AddRow(nil, "jon", "doe", "jdoe@mail.com", "+1 212 555 1234").
+					RowError(1, errTest)
 				mockDB.ExpectQuery("SELECT").WillReturnRows(expectedRows)
-				rowsReturned, err = d.SelectCustomersForUpload()
+				rowsReturned, err = SelectCustomersForUpload()
 			})
 
 			It("should return a scan error", func() {
 				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
-				//Expect(err).To(MatchError(fmt.Errorf("while selecting rows: %s", errTest)))
+				Expect(err).To(MatchError(fmt.Errorf("while scanning rows: sql: Scan error on column index 0, name \"id\": converting driver.Value type <nil> (\"<nil>\") to a int64: invalid syntax")))
 				Expect(rowsReturned).To(BeNil())
 			})
 		})
 	})
 
-	Context(".UpdateUploaded", func() {
+	Context(".Uploaded", func() {
+		var testCustomer *Customer
 		BeforeEach(func() {
-			d = &dbase{sqlDB: dbMock}
+			db = dbMock
+			testCustomer = &Customer{
+				Id:        1,
+				FirstName: "jon",
+				LastName:  "doe",
+				Email:     "jon.doe@mail.com",
+				Phone:     "+1 212 555 1234",
+			}
 		})
 
 		AfterEach(func() {
-			d = nil
+			db = nil
 		})
 
 		Context("with a successful update", func() {
-		    BeforeEach(func() {
-		        mockDB.ExpectBegin()
-		        mockDB.ExpectExec("UPDATE customers").WillReturnResult(sqlmock.NewResult(1, 1))
-		        mockDB.ExpectCommit()
-		        err = d.UpdateUploaded([]byte("jdoe@mail.com"))
-            })
+			BeforeEach(func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectExec("UPDATE customers").WillReturnResult(sqlmock.NewResult(1, 1))
+				mockDB.ExpectCommit()
+				err = testCustomer.Uploaded()
+			})
 
-		    It("should not return an error", func() {
-		        Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
-		        Expect(err).ToNot(HaveOccurred())
-            })
-        })
+			It("should not return an error", func() {
+				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
 
 		Context("with a failed update", func() {
-		    BeforeEach(func() {
-		        mockDB.ExpectBegin()
-		        mockDB.ExpectExec("UPDATE customers").WillReturnError(errTest)
-		        mockDB.ExpectRollback()
-		        err = d.UpdateUploaded([]byte("jdoe@mail.com"))
-            })
+			BeforeEach(func() {
+				mockDB.ExpectBegin()
+				mockDB.ExpectExec("UPDATE customers").WillReturnError(errTest)
+				mockDB.ExpectRollback()
+				err = testCustomer.Uploaded()
+			})
 
-		    It("should return an error", func() {
-		        Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
-		        Expect(err).To(MatchError(fmt.Errorf("while updating: %s", errTest)))
-            })
-        })
+			It("should return an error", func() {
+				Expect(mockDB.ExpectationsWereMet()).ToNot(HaveOccurred())
+				Expect(err).To(MatchError(fmt.Errorf("while updating: %s", errTest)))
+			})
+		})
 	})
 })
