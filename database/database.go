@@ -3,7 +3,9 @@ package database
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log"
 	"text/template"
 
 	// This external lib is required for postgres.
@@ -11,17 +13,19 @@ import (
 )
 
 const (
-	insertTemplate      = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORD(null::customers, '{{.Single}}');`
-	insertSetTemplate   = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORDSET(null::customers, {{.Set}});`
+	insertTemplate      = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORD(null::customers, '{{.JSON}}');`
+	insertSetTemplate   = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORDSET(null::customers, {{.JSON}});`
 	selectUploadedFalse = `SELECT id, first_name, last_name, email, phone FROM customers WHERE uploaded = false;`
 	updateUploaded      = `UPDATE customers SET uploaded = true WHERE email = $1;`
 )
 
 var (
+	db                        *sql.DB
 	insertCustomerTemplate    *template.Template
 	insertCustomerSetTemplate *template.Template
 )
 
+// Customer describes a CRM customer
 type Customer struct {
 	Id        int64  `json:"id"`
 	FirstName string `json:"first_name"`
@@ -30,71 +34,108 @@ type Customer struct {
 	Phone     string `json:"phone"`
 }
 
+// Customers is a slice of *Customer
+type Customers []*Customer
+
 type templateFields struct {
-	Single string
-	Set    string
+	JSON string
 }
 
 func init() {
+	// These only need to be run once and they don't produce errors so this is a good place for them.
 	insertCustomerTemplate = template.Must(template.New("insertCustomer").Parse(insertTemplate))
 	insertCustomerSetTemplate = template.Must(template.New("insertCustomerSet").Parse(insertSetTemplate))
 }
 
-// DB sets up the DB interface to our postgres database and handles the connection.
-type dbase struct {
-	sqlDB *sql.DB
-}
-
-type DB interface {
-	InsertCustomer([]byte) error
-	InsertCustomerSet([]byte) error
-	SelectCustomersForUpload() ([]byte, error)
-}
-
-// New DB returns an instance of this DB or an error on failure to open a connection to the database.
-func NewDB(user, password, host, database string) (*dbase, error) {
+// Open creates the database connection to the postgres database.
+func Open(user, password, host, database string) {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", user, password, host, database)
 	d, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return nil, fmt.Errorf("while opening database: %s", err)
+		log.Fatalf("while opening database: %s", err)
+	}
+	db = d
+}
+
+// NewCustomer returns a *Customer based on the supplied Customer type values.
+func NewCustomer(id int64, firstName, lastName, email, phone string) *Customer {
+	return &Customer{
+		id,
+		firstName,
+		lastName,
+		email,
+		phone,
+	}
+}
+
+// NewCustomers creates a *Customers object consisting of the optionally supplied *Customer objects.
+func NewCustomers(customerList ...*Customer) *Customers {
+	customers := &Customers{}
+	for _, customer := range customerList {
+		*customers = append(*customers, customer)
 	}
 
-	return &dbase{sqlDB: d}, nil
+	return customers
 }
 
-// InsertCustomer takes a single Customer JSON object in byte slice form to insert into the database.
-func (d *dbase) InsertCustomer(customer []byte) error {
-	s := &templateFields{Single: string(customer)}
-	return d.insert(s)
-}
+// Insert performs the database insert of a single customer object.
+func (c *Customer) Insert() error {
+	jsonBytes, err := json.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("while marshaling customer: %s", err)
+	}
 
-// InsertCustomerSet takes a byte slice containing a JSON formatted array of Customer JSON objects to do a bulk insert.
-func (d *dbase) InsertCustomerSet(customerSet []byte) error {
-	s := &templateFields{Set: string(customerSet)}
-	return d.insert(s)
-}
-
-func (d *dbase) insert(s *templateFields) error {
+	s := &templateFields{JSON: string(jsonBytes)}
 	b := new(bytes.Buffer)
-	err := insertCustomerTemplate.Execute(b, s)
+
+	err = insertCustomerTemplate.Execute(b, s)
 	if err != nil {
 		return fmt.Errorf("customer data: %s", err)
 	}
 
-	tx, err := d.sqlDB.Begin()
+	return insert(b.Bytes())
+}
+
+// Append adds the supplied *Customer to the *Customers set.
+func (c *Customers) Append(customer *Customer) {
+    *c = append(*c, customer)
+}
+
+// Insert performs the database insert with a set of customer objects
+func (c *Customers) Insert() error {
+	jsonBytes, err := json.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("while marshaling customer: %s", err)
+	}
+
+	s := &templateFields{JSON: string(jsonBytes)}
+	b := new(bytes.Buffer)
+
+	err = insertCustomerSetTemplate.Execute(b, s)
+	if err != nil {
+		return fmt.Errorf("customer data: %s", err)
+	}
+
+	return insert(b.Bytes())
+}
+
+func insert(b []byte) error {
+	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("while creating transaction: %s", err)
 	}
-	defer func() {
-        switch err {
-        case nil:
-            err = tx.Commit()
-        default:
-            err = tx.Rollback()
-        }
-    }()
 
-	_, err = tx.Exec(b.String())
+	// If returning an error Rollback the transaction, otherwise Commit it.
+	defer func() {
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			err = tx.Rollback()
+		}
+	}()
+
+	_, err = tx.Exec(string(b))
 	if err != nil {
 		return fmt.Errorf("executing query: %s", err)
 	}
@@ -102,11 +143,11 @@ func (d *dbase) insert(s *templateFields) error {
 	return nil
 }
 
-// SelectCustomersForUpload returns a slice of *Customer structs suitable to be marshaled and uploaded to CRM.
-func (d *dbase) SelectCustomersForUpload() ([]*Customer, error) {
-	var customers []*Customer
+// SelectCustomersForUpload returns a *Customers struct suitable to be unmarshaled and uploaded to CRM.
+func SelectCustomersForUpload() (*Customers, error) {
+	customers := new(Customers)
 
-	rows, err := d.sqlDB.Query(selectUploadedFalse)
+	rows, err := db.Query(selectUploadedFalse)
 	if err != nil {
 		return nil, fmt.Errorf("while selecting rows: %s", err)
 	}
@@ -118,32 +159,33 @@ func (d *dbase) SelectCustomersForUpload() ([]*Customer, error) {
 			return nil, fmt.Errorf("while scanning rows: %s", err)
 		}
 
-		customers = append(customers, c)
+		*customers = append(*customers, c)
 	}
+
 	return customers, nil
 }
 
-// UpdateUploaded is used to set the status of a customer record in the database to "uploaded".
-func (d *dbase) UpdateUploaded(email []byte) error {
-    tx, err := d.sqlDB.Begin()
-    if err != nil {
-        return fmt.Errorf("while starting update: %s", err)
-    }
+// Uploaded is used to set the status of a customer record in the database to "uploaded".
+func (c *Customer) Uploaded() error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("while starting update: %s", err)
+	}
+
+    // If returning an error Rollback the transaction, otherwise Commit it.
     defer func() {
-        switch err {
-        case nil:
-            err = tx.Commit()
-        default:
-            err = tx.Rollback()
-        }
-    }()
+		switch err {
+		case nil:
+			err = tx.Commit()
+		default:
+			err = tx.Rollback()
+		}
+	}()
 
-    _, err = tx.Exec(updateUploaded, string(email))
-    if err != nil {
-        return fmt.Errorf("while updating: %s", err)
-    }
+	_, err = tx.Exec(updateUploaded, string(c.Email))
+	if err != nil {
+		return fmt.Errorf("while updating: %s", err)
+	}
 
-    return nil
+	return nil
 }
-
-
