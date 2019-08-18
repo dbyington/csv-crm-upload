@@ -101,6 +101,11 @@ func (c *Customers) Append(customer *Customer) {
     *c = append(*c, customer)
 }
 
+// Count returns the number of *Customer in the *Customers set.
+func (c *Customers) Count() int {
+    return len(*c)
+}
+
 // Insert performs the database insert with a set of customer objects
 func (c *Customers) Insert() error {
 	jsonBytes, err := json.Marshal(c)

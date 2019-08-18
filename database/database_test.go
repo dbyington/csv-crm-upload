@@ -282,6 +282,26 @@ var _ = Describe("Database", func() {
         })
     })
 
+	Context(".Count", func() {
+        var testCustomers = &Customers{}
+
+        Context("with no customers", func() {
+            It("should return 0", func() {
+                Expect(testCustomers.Count()).To(Equal(0))
+            })
+        })
+
+        Context("with 2 customers", func() {
+            BeforeEach(func() {
+                *testCustomers = append(*testCustomers, expectedCustomer1, expectedCustomer2)
+            })
+
+            It("should return 2", func() {
+                Expect(testCustomers.Count()).To(Equal(2))
+            })
+        })
+    })
+
 	Context("SelectCustomersForUpload", func() {
 		var expectedRows *sqlmock.Rows
 		var rowsReturned *Customers
