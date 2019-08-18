@@ -2,12 +2,12 @@
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-	CREATE USER csvcrm PASSWORD 'csvcrm';
+	CREATE USER "$POSTGRES_CSV_USER" PASSWORD '$POSTGRES_CSV_PASSWORD';
 	CREATE DATABASE crm;
-	GRANT ALL PRIVILEGES ON DATABASE crm TO csvcrm;
+	GRANT ALL PRIVILEGES ON DATABASE crm TO "$POSTGRES_CSV_USER";
 EOSQL
 
-psql -v ON_ERROR_STOP=1 --username "csvcrm" --dbname "crm" <<-EOSQL
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_CSV_USER" --dbname "crm" <<-EOSQL
 	CREATE TABLE customers (
 	    -- There is an id supplied with the CSV data, so we'll use that but ensure it is supplied and unique.
 	    id INTEGER NOT NULL UNIQUE,
