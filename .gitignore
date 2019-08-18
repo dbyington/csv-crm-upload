@@ -7,8 +7,8 @@ data/
 # JetBrains IDE files
 .idea/
 
-# private environment variables
-.env
+# private environment variables (would normally be excluded)
+# .env
 
 # test coverage output
 *.coverprofile
