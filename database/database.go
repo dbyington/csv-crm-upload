@@ -52,6 +52,7 @@ type Customers interface {
     List() []*customer
 }
 
+// NewCustomerDB takes a sql.DB instance already opened to the correct db.
 func NewCustomerDB(d *sql.DB) *cdb {
 	return &cdb{d}
 }
