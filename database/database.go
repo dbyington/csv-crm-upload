@@ -1,29 +1,31 @@
 package database
 
-import (
-	"bytes"
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"log"
-	"text/template"
+//go:generate mockgen -source=database.go -destination=mock/database_mock.go -package=mock_database
 
-	// This external lib is required for postgres.
-	_ "github.com/lib/pq"
+import (
+    "database/sql"
+    "encoding/json"
+    "fmt"
+
+    // This external lib is required for postgres.
+    _ "github.com/lib/pq"
 )
 
 const (
-	insertTemplate      = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORD(null::customers, '{{.JSON}}');`
-	insertSetTemplate   = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORDSET(null::customers, {{.JSON}});`
+	insertCustomer      = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORD(null::customers, $1::json);`
+	insertCustomerSet   = `INSERT INTO customers SELECT * FROM JSON_POPULATE_RECORDSET(null::customers, $1::json);`
 	selectUploadedFalse = `SELECT id, first_name, last_name, email, phone FROM customers WHERE uploaded = false;`
 	updateUploaded      = `UPDATE customers SET uploaded = true WHERE email = $1;`
 )
 
-var (
-	db                        *sql.DB
-	insertCustomerTemplate    *template.Template
-	insertCustomerSetTemplate *template.Template
-)
+type cdb struct {
+	*sql.DB
+}
+
+type CustomerDB interface {
+	NewCustomer(int64, string, string, string, string) *customer
+	SelectCustomersForUpload() (*customers, error)
+}
 
 // Customer describes a CRM customer
 type customer struct {
@@ -32,6 +34,7 @@ type customer struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
+	db        *cdb   `json:"-"`
 }
 
 type Customer interface {
@@ -49,34 +52,20 @@ type Customers interface {
     List() []*customer
 }
 
-type templateFields struct {
-	JSON string
-}
-
-func init() {
-	// These only need to be run once and they don't produce errors so this is a good place for them.
-	insertCustomerTemplate = template.Must(template.New("insertCustomer").Parse(insertTemplate))
-	insertCustomerSetTemplate = template.Must(template.New("insertCustomerSet").Parse(insertSetTemplate))
-}
-
-// Open creates the database connection to the postgres database.
-func Open(user, password, host, database string) {
-	connStr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", user, password, host, database)
-	d, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("while opening database: %s", err)
-	}
-	db = d
+// NewCustomerDB takes a sql.DB instance already opened to the correct db.
+func NewCustomerDB(d *sql.DB) *cdb {
+	return &cdb{d}
 }
 
 // NewCustomer returns a *Customer based on the supplied Customer type values.
-func NewCustomer(id int64, firstName, lastName, email, phone string) *customer {
+func (db *cdb) NewCustomer(id int64, firstName, lastName, email, phone string) *customer {
 	return &customer{
 		id,
 		firstName,
 		lastName,
 		email,
 		phone,
+		db,
 	}
 }
 
@@ -97,15 +86,7 @@ func (c *customer) Insert() error {
 		return fmt.Errorf("while marshaling customer: %s", err)
 	}
 
-	s := &templateFields{JSON: string(jsonBytes)}
-	b := new(bytes.Buffer)
-
-	err = insertCustomerTemplate.Execute(b, s)
-	if err != nil {
-		return fmt.Errorf("customer data: %s", err)
-	}
-
-	return insert(b.Bytes())
+	return c.db.insert(insertCustomer, string(jsonBytes))
 }
 
 // Append adds the supplied *Customer to the *customers set.
@@ -124,23 +105,23 @@ func (c *customers) List() []*customer {
 
 // Insert performs the database insert with a set of customer objects
 func (c *customers) Insert() error {
+	// Extract the db from the first customer
+	var db *cdb
+	if customer := c.List()[0]; customer != nil {
+		db = customer.db
+	} else {
+		return fmt.Errorf("empty customer list")
+	}
+
 	jsonBytes, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("while marshaling customer: %s", err)
 	}
 
-	s := &templateFields{JSON: string(jsonBytes)}
-	b := new(bytes.Buffer)
-
-	err = insertCustomerSetTemplate.Execute(b, s)
-	if err != nil {
-		return fmt.Errorf("customer data: %s", err)
-	}
-
-	return insert(b.Bytes())
+	return db.insert(insertCustomerSet, string(jsonBytes))
 }
 
-func insert(b []byte) error {
+func (db *cdb) insert(query, arg string) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("while creating transaction: %s", err)
@@ -156,18 +137,17 @@ func insert(b []byte) error {
 		}
 	}()
 
-	_, err = tx.Exec(string(b))
+	_, err = tx.Exec(query, arg)
 	if err != nil {
-		return fmt.Errorf("executing query: %s", err)
+		return fmt.Errorf("executing query (%s): %s", query, err)
 	}
 
 	return nil
 }
 
 // SelectCustomersForUpload returns a *customers struct suitable to be unmarshaled and uploaded to CRM.
-func SelectCustomersForUpload() (*customers, error) {
+func (db *cdb) SelectCustomersForUpload() (*customers, error) {
 	customers := new(customers)
-
 	rows, err := db.Query(selectUploadedFalse)
 	if err != nil {
 		return nil, fmt.Errorf("while selecting rows: %s", err)
@@ -188,7 +168,7 @@ func SelectCustomersForUpload() (*customers, error) {
 
 // Uploaded is used to set the status of a customer record in the database to "uploaded".
 func (c *customer) Uploaded() error {
-	tx, err := db.Begin()
+	tx, err := c.db.Begin()
 	if err != nil {
 		return fmt.Errorf("while starting update: %s", err)
 	}
