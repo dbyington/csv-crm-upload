@@ -27,15 +27,15 @@ func NewReader(db database.CustomerDB, f io.Reader, headerRow bool, lineBuffer i
 }
 
 func (c *reader) Run() error {
-    if c.headerRow {
-        if err := c.dropHeaderRow(); err != nil {
-            return err
-        }
-    }
-    if err := c.readCustomers(); err != io.EOF {
-        return err
-    }
-    return nil
+	if c.headerRow {
+		if err := c.dropHeaderRow(); err != nil {
+			return err
+		}
+	}
+	if err := c.readCustomers(); err != io.EOF {
+		return err
+	}
+	return nil
 }
 
 func (c *reader) dropHeaderRow() error {
@@ -44,11 +44,11 @@ func (c *reader) dropHeaderRow() error {
 }
 
 func (c *reader) readCustomers() error {
-    if c.headerRow {
-        if err := c.dropHeaderRow(); err != nil {
-            return err
-        }
-    }
+	if c.headerRow {
+		if err := c.dropHeaderRow(); err != nil {
+			return err
+		}
+	}
 	customers := database.NewCustomers()
 	for {
 		if customers.Count() == c.lineBuffer {
@@ -69,9 +69,9 @@ func (c *reader) readCustomers() error {
 				insertCustomers(customers)
 				return err
 			} else {
-			    // If parseRow returns an error other than EOF just log it and continue.
-			    log.Printf("error reading row: %s", err)
-            }
+				// If parseRow returns an error other than EOF just log it and continue.
+				log.Printf("error reading row: %s", err)
+			}
 		}
 	}
 }

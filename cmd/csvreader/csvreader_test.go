@@ -25,9 +25,9 @@ var (
 )
 
 const (
-	csvHeaderRow    = `id,first_name,last_name,email,phone`
-	goodCSV         = `1,jon,doe,jon.doe@mail.com,+1 212 555 1234`
-	badCSV          = `foo,,,,,`
+	csvHeaderRow = `id,first_name,last_name,email,phone`
+	goodCSV      = `1,jon,doe,jon.doe@mail.com,+1 212 555 1234`
+	badCSV       = `foo,,,,,`
 )
 
 var _ = Describe("Csv", func() {
@@ -155,7 +155,7 @@ var _ = Describe("Csv", func() {
 				mockDB.ExpectExec("INSERT").WithArgs().WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
 				err = r.readCustomers()
-                Expect(err).To(MatchError(io.EOF))
+				Expect(err).To(MatchError(io.EOF))
 			})
 		})
 	})
