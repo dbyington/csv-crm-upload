@@ -24,8 +24,3 @@ type CustomerDB interface {
 func NewCDB(d *sql.DB) *cdb {
     return &cdb{d}
 }
-
-//
-//func NewCustomer(id int64, first, last, email, phone string) *customer {
-//    return &customer{id, first, last, email, phone}
-//}
