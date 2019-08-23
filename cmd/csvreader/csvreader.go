@@ -26,25 +26,29 @@ func NewReader(db database.CustomerDB, f io.Reader, headerRow bool, lineBuffer i
 	}
 }
 
-func (c *reader) Run() {
-	if c.headerRow {
-		c.dropHeaderRow()
-	}
-	c.readCustomers()
+func (c *reader) Run() error {
+    if c.headerRow {
+        if err := c.dropHeaderRow(); err != nil {
+            return err
+        }
+    }
+    if err := c.readCustomers(); err != io.EOF {
+        return err
+    }
+    return nil
 }
 
-func (c *reader) dropHeaderRow() {
+func (c *reader) dropHeaderRow() error {
 	_, err := c.Read()
-	if err != nil {
-		//if err, ok := err.(*csv.ParseError); ok {
-		//	log.Print("parse error while reading header row:", err)
-		//} else {
-		log.Printf("error while reading header row: %s", err)
-		//}
-	}
+	return err
 }
 
-func (c *reader) readCustomers() {
+func (c *reader) readCustomers() error {
+    if c.headerRow {
+        if err := c.dropHeaderRow(); err != nil {
+            return err
+        }
+    }
 	customers := database.NewCustomers()
 	for {
 		if customers.Count() == c.lineBuffer {
@@ -63,8 +67,11 @@ func (c *reader) readCustomers() {
 		} else {
 			if err == io.EOF {
 				insertCustomers(customers)
-				return
-			}
+				return err
+			} else {
+			    // If parseRow returns an error other than EOF just log it and continue.
+			    log.Printf("error reading row: %s", err)
+            }
 		}
 	}
 }

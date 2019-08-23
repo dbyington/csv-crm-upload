@@ -38,7 +38,6 @@ var _ = Describe("Csv", func() {
 		r         *reader
 		mockCtrl  *gomock.Controller
 
-		//mockCustomer *databaseMock.MockCustomer
 		mockCustomers *databaseMock.MockCustomers
 	)
 
@@ -70,9 +69,10 @@ var _ = Describe("Csv", func() {
 	})
 	Context("dropHeaderRow", func() {
 		var row []string
+		var headerErr error
 		Context("with a good CSV header", func() {
 			JustBeforeEach(func() {
-				r.dropHeaderRow()
+				headerErr = r.dropHeaderRow()
 				row, err = r.Read()
 			})
 
@@ -82,14 +82,14 @@ var _ = Describe("Csv", func() {
 			})
 
 			It("should swallow the row", func() {
-				Expect(err).ToNot(HaveOccurred())
+				Expect(headerErr).ToNot(HaveOccurred())
 				Expect(row[0]).To(Equal("1"))
 			})
 		})
 
 		Context("with nothing to read", func() {
 			JustBeforeEach(func() {
-				r.dropHeaderRow()
+				headerErr = r.dropHeaderRow()
 				_, err = r.Read()
 			})
 
@@ -105,7 +105,7 @@ var _ = Describe("Csv", func() {
 			})
 
 			It("should report a parse error", func() {
-				Expect(err).To(MatchError(io.EOF))
+				Expect(headerErr).To(MatchError(io.EOF))
 			})
 		})
 	})
@@ -121,7 +121,6 @@ var _ = Describe("Csv", func() {
 					hasHeader,
 					5,
 				}
-
 			})
 
 			It("should append to the customers", func() {
@@ -129,10 +128,8 @@ var _ = Describe("Csv", func() {
 				mockDB.ExpectExec("INSERT").WithArgs().WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
 
-				//mockCustomers.EXPECT().Count().Return(1)
-				//mockCustomers.EXPECT().Append(gomock.Any()).Times(0)
-				r.readCustomers()
-				Expect(err).ToNot(HaveOccurred())
+				err = r.readCustomers()
+				Expect(err).To(MatchError(io.EOF))
 			})
 		})
 
@@ -150,16 +147,15 @@ var _ = Describe("Csv", func() {
 				}
 			})
 
-			It("should insert and reset", func() {
+			It("should insert and continue", func() {
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec("INSERT").WithArgs().WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
 				mockDB.ExpectBegin()
 				mockDB.ExpectExec("INSERT").WithArgs().WillReturnResult(sqlmock.NewResult(1, 1))
 				mockDB.ExpectCommit()
-				//mockCustomers.EXPECT().Append(gomock.Any()).Times(7)
-				r.readCustomers()
-
+				err = r.readCustomers()
+                Expect(err).To(MatchError(io.EOF))
 			})
 		})
 	})

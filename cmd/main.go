@@ -27,11 +27,8 @@ func main() {
 	flag.StringVar(&dbPassword, "password", os.Getenv("POSTGRES_CSV_PASSWORD"), "Password used to connect to the postgres database.")
 	flag.StringVar(&dbHost, "host", os.Getenv("POSTGRES_HOST"), "Hostname used to connect to the postgres database.")
 	flag.StringVar(&dbName, "database", os.Getenv("POSTGRES_DATABASE"), "Username used to connect to the postgres database.")
-	// Parse the flags
 	flag.Parse()
 
-	// Open the database. If Open fails it will exit the program for us. No point in continuing if we cannot open the db.
-	//database.Open(dbUser, dbPassword, dbHost, dbName)
 	connStr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbName)
 	d, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -45,6 +42,7 @@ func main() {
 	}
 
 	reader := csvreader.NewReader(db, file, csvNoHeaderRow, lineBuffer)
-	reader.Run()
-
+	log.Println("starting...")
+	log.Println(reader.Run())
+	log.Println("done.")
 }
