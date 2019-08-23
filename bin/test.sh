@@ -2,4 +2,5 @@
 set -a
 source .env
 set +a
-ginkgo -cover -race -trace ./...
+# shellcheck disable=SC2068
+ginkgo -cover -race -trace $@ ./...
