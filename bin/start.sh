@@ -2,5 +2,5 @@
 
 DC=$(command -v docker-compose)
 
-# Start the postgres container
-${DC} up -d postgres
+# Start the postgres and crm containers
+${DC} up -d postgres crm
