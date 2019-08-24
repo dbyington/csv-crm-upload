@@ -1,21 +1,33 @@
 package csvreader
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/dbyington/csv-crm-upload/database"
 	"io"
+	"net/rpc"
 	"strings"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/dbyington/csv-crm-upload/database"
 	databaseMock "github.com/dbyington/csv-crm-upload/database/mock"
+	"github.com/dbyington/csv-crm-upload/signal/sender"
 )
+
+type buffer struct {
+    bytes.Buffer
+}
+
+func (b *buffer) Close() error {
+    b.Buffer.Reset()
+    return nil
+}
 
 var (
 	errTest = errors.New("test error")
@@ -38,6 +50,10 @@ var _ = Describe("Csv", func() {
 		r         *reader
 		mockCtrl  *gomock.Controller
 
+		rpcBuffer io.ReadWriteCloser
+		rpcClient *rpc.Client
+		rpcSender *sender.Sender
+
 		mockCustomers *databaseMock.MockCustomers
 	)
 
@@ -45,6 +61,9 @@ var _ = Describe("Csv", func() {
 		dbMock, mockDB, err = sqlmock.New()
 		mockCtrl = gomock.NewController(GinkgoT())
 		mockCustomers = databaseMock.NewMockCustomers(mockCtrl)
+		rpcBuffer = &buffer{}
+		rpcClient = rpc.NewClient(rpcBuffer)
+		rpcSender = sender.NewSender(rpcClient)
 	})
 
 	Context("NewReader", func() {
@@ -55,15 +74,18 @@ var _ = Describe("Csv", func() {
 			r = &reader{
 				csv.NewReader(strings.NewReader(csvString)),
 				database.NewCustomerDB(dbMock),
-				hasHeader,
+				!hasHeader,
 				5,
+				rpcSender,
 			}
 			testR = NewReader(database.NewCustomerDB(dbMock),
 				strings.NewReader(csvString),
+				rpcClient,
 				hasHeader,
 				5)
 		})
 		It("should return a reader", func() {
+			Expect(testR).ToNot(BeNil())
 			Expect(testR).To(BeEquivalentTo(r))
 		})
 	})
@@ -101,6 +123,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 			})
 
@@ -120,6 +143,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 			})
 
@@ -144,6 +168,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 			})
 
@@ -174,6 +199,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 				id, first, last, email, phone, err = r.parseRow()
 			})
@@ -197,6 +223,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 				id, first, last, email, phone, err = r.parseRow()
 			})
@@ -215,6 +242,7 @@ var _ = Describe("Csv", func() {
 					database.NewCustomerDB(dbMock),
 					hasHeader,
 					5,
+					rpcSender,
 				}
 				id, first, last, email, phone, err = r.parseRow()
 			})

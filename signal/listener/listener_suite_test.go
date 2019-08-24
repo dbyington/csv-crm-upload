@@ -1,4 +1,4 @@
-package csv_crm_upload
+package listener
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCsvCrmUpload(t *testing.T) {
+func TestListener(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "CsvCrmUpload Suite")
+	RunSpecs(t, "Listener Suite")
 }
