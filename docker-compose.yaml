@@ -11,3 +11,12 @@ services:
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
       - ./postgres/entrypoint-init.d:/docker-entrypoint-initdb.d
+
+  crm:
+    image: golang:1.12.9
+    restart: unless-stopped
+    ports:
+      - 8089:80
+    volumes:
+      - ./crm_server:/root/crm
+    entrypoint: go run /root/crm/server.go
