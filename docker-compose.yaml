@@ -21,7 +21,7 @@ services:
     image: golang:1.12.9
     restart: unless-stopped
     ports:
-      - 8089:80
+      - 8089:8089
     volumes:
       - ./crm_server:/root/crm
     entrypoint: go run /root/crm/server.go
