@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -a
+source .env
 
 DC=$(command -v docker-compose)
 
