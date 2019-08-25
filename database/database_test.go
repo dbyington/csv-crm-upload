@@ -25,7 +25,6 @@ var (
 	customerDB *cdb
 	dbMock     *sql.DB
 	mockDB     sqlmock.Sqlmock
-
 )
 
 var _ = Describe("Database", func() {
@@ -36,6 +35,7 @@ var _ = Describe("Database", func() {
 			LastName:  "doe",
 			Email:     "jon.doe@mail.com",
 			Phone:     "+1 212 555 1234",
+			Up:        false,
 		}
 		expectedCustomer2 = &customer{
 			Id:        2,
@@ -43,6 +43,7 @@ var _ = Describe("Database", func() {
 			LastName:  "doe",
 			Email:     "jane.doe@mail.com",
 			Phone:     "+1 212 555 4321",
+			Up:        false,
 		}
 	)
 
@@ -62,6 +63,9 @@ var _ = Describe("Database", func() {
 			})
 
 			It("should return a customer", func() {
+				// Need to fake the timestamps for the assertion. This is the easiest way to do that.
+				expectedCustomer1.Created = testCustomer.Created
+				expectedCustomer1.Updated = testCustomer.Updated
 				Expect(testCustomer).To(BeEquivalentTo(expectedCustomer1))
 			})
 		})
@@ -271,24 +275,24 @@ var _ = Describe("Database", func() {
 	})
 
 	Context(".Count", func() {
-        var testCustomers = &customers{}
+		var testCustomers = &customers{}
 
-        Context("with no customers", func() {
-            It("should return 0", func() {
-                Expect(testCustomers.Count()).To(Equal(0))
-            })
-        })
+		Context("with no customers", func() {
+			It("should return 0", func() {
+				Expect(testCustomers.Count()).To(Equal(0))
+			})
+		})
 
-        Context("with 2 customers", func() {
-            BeforeEach(func() {
-                *testCustomers = append(*testCustomers, expectedCustomer1, expectedCustomer2)
-            })
+		Context("with 2 customers", func() {
+			BeforeEach(func() {
+				*testCustomers = append(*testCustomers, expectedCustomer1, expectedCustomer2)
+			})
 
-            It("should return 2", func() {
-                Expect(testCustomers.Count()).To(Equal(2))
-            })
-        })
-    })
+			It("should return 2", func() {
+				Expect(testCustomers.Count()).To(Equal(2))
+			})
+		})
+	})
 
 	Context("SelectCustomersForUpload", func() {
 		var (
