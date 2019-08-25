@@ -28,12 +28,14 @@ You'll see this;
 $ docker-compose ps
           Name                         Command                 State               Ports
 -------------------------------------------------------------------------------------------------
-csv-crm-upload_crm_1        go run /root/crm/server.go      Up             0.0.0.0:8089->80/tcp
+csv-crm-upload_crm_1        go run /root/crm/server.go      Up             0.0.0.0:8089->8089/tcp
 csv-crm-upload_postgres_1   docker-entrypoint.sh postgres   Up (healthy)   0.0.0.0:5432->5432/tcp
 ```
 
-Now start the `crmIntegrator` service, in one terminal window:
+Now source the `.env` file and start the `crmIntegrator` service, in one terminal window:
 ```
+$ set -a
+$ source .env
 $ ./crmIntegrator
 ```
 This will begin outputting that it is checking for work. As long as there is no work or the CRM Service provider is unresponsive the interval between checks will continually grow larger (it increments using a fibonacci numbering scheme).
