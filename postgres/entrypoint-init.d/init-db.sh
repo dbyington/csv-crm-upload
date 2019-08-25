@@ -16,9 +16,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_CSV_USER" --dbname "crm" <<-EOSQL
       email TEXT NOT NULL UNIQUE,
       phone TEXT,
       -- These fields should not normally be supplied in and INSERT so they are set to the default.
-      uploaded BOOLEAN NOT NULL DEFAULT false,
-      created_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      modified_ts TIMESTAMPTZ NOT NULL DEFAULT NOW());
+      uploaded BOOLEAN DEFAULT false,
+      created_ts TIMESTAMPTZ DEFAULT NOW(),
+      modified_ts TIMESTAMPTZ DEFAULT NOW());
 
   -- Since we'll be using the uploaded field to select rows needing to be updated create an index on it increase the
   -- speed of the select, eventhough it will be negligable with such a small data set.
