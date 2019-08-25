@@ -5,6 +5,7 @@ A demonstration of reading customer data from a CSV file, saving to a Postgresql
 ## Getting Started
 
 ### Prerequesites:
+- Git
 - Go > 1.11.4
 - [Docker](https://www.docker.com/) (Docker Engine > 1.13.0)
 - docker-compose (A version that supports compose version 3.1)
@@ -14,8 +15,8 @@ A demonstration of reading customer data from a CSV file, saving to a Postgresql
 ### Getting Going:
 Run the following commands:
 ```
-$ go get github.com/dbyington/csv-crm-upload
-$ cd ${GOPATH}/src/github.com/dbyington/csv-crm-upload
+$ git clone https://github.com/dbyington/csv-crm-upload.git
+$ cd csv-crm-upload
 $ ./bin/setup.sh
 $ ./bin/start.sh
 ```
