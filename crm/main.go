@@ -9,6 +9,8 @@ import (
     "os"
 )
 
+const crmAPI = "/customers"
+
 func main() {
     dbUser := os.Getenv("POSTGRES_CSV_USER")
     dbPassword := os.Getenv("POSTGRES_CSV_PASSWORD")
@@ -27,6 +29,6 @@ func main() {
     listenerAddr := os.Getenv("CRM_LISTENER_ADDR")
     crmServerAddr := os.Getenv("CRM_SERVER_ADDR")
 
-    uploader := upload.NewUploader(listenerAddr, crmServerAddr, db)
+    uploader := upload.NewUploader(listenerAddr, crmServerAddr, crmAPI, db)
     uploader.Start()
 }

@@ -23,6 +23,7 @@ const clientTimeout = 30
 type upload struct {
 	listenAddress    string
 	crmServerAddress string
+	crmAPI           string
 	httpClient       *http.Client
 	db               database.CustomerDB
 	sigChan          chan struct{}
@@ -33,10 +34,11 @@ type upload struct {
 	uploadChan       chan database.Customer
 }
 
-func NewUploader(lis, crm string, db database.CustomerDB) *upload {
+func NewUploader(lis, crm, crmAPI string, db database.CustomerDB) *upload {
 	return &upload{
 		listenAddress:    lis,
 		crmServerAddress: crm,
+		crmAPI:           crmAPI,
 		db:               db,
 		httpClient: &http.Client{
 			Timeout: clientTimeout * time.Second,
@@ -108,6 +110,7 @@ func (u *upload) processNewCustomers() {
 	for _, customer := range customers.List() {
 		u.uploadChan <- customer
 	}
+    log.Print("done.")
 }
 
 func (u *upload) post(c database.Customer) error {
@@ -117,7 +120,7 @@ func (u *upload) post(c database.Customer) error {
 		return fmt.Errorf("error marshaling customerr: %s", err)
 	}
 
-	resp, err := u.httpClient.Post(u.crmServerAddress+"/customers", "application/json", req)
+	resp, err := u.httpClient.Post(u.crmServerAddress+u.crmAPI, "application/json", req)
 	if err != nil {
 		return fmt.Errorf("error while posting to CRM: %s", err)
 	}
@@ -128,20 +131,20 @@ func (u *upload) post(c database.Customer) error {
 }
 
 func (u *upload) uploadQueue(ctx context.Context) {
+    var err error
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case customer := <-u.uploadChan:
-			if err := u.post(customer); err != nil {
-				log.Print(err)
-				continue
+			if err = u.post(customer); err == nil {
+                if err = customer.Uploaded(); err == nil {
+                    u.success()
+                }
 			}
-			if err := customer.Uploaded(); err != nil {
-				log.Print(err)
-				continue
-			}
-			u.success()
+			if err != nil {
+			    log.Print(err)
+            }
 		}
 	}
 }
