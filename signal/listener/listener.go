@@ -2,7 +2,6 @@ package listener
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"net/rpc"
@@ -13,8 +12,6 @@ type Listener struct {
 	signaler *Signaler
 	server   *http.Server
 }
-
-var errBusy = errors.New("signal listener busy")
 
 type Signaler struct {
 	sig chan<- struct{}
@@ -32,10 +29,9 @@ func (s *Signaler) Send(args, reply *struct{}) error {
 	// Send in a select so that if the channel is not ready to receive, i.e is buffered but full, this will not block.
 	select {
 	case s.sig <- struct{}{}:
-		return nil
 	default:
-		return errBusy
 	}
+	return nil
 }
 
 func (l *Listener) Start() error {

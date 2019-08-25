@@ -104,7 +104,8 @@ var _ = Describe("Listener", func() {
 				})
 
 				It("should not be blocked", func() {
-					Expect(err).To(MatchError(errBusy))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(sigChan).To(Receive())
 				})
 			})
 		})

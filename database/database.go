@@ -6,6 +6,7 @@ import (
     "database/sql"
     "encoding/json"
     "fmt"
+    "time"
 
     // This external lib is required for postgres.
     _ "github.com/lib/pq"
@@ -29,27 +30,30 @@ type CustomerDB interface {
 
 // Customer describes a CRM customer
 type customer struct {
-	Id        int64  `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone"`
-	db        *cdb   `json:"-"`
+	Id        int64     `json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	Phone     string    `json:"phone"`
+	Up        bool      `json:"uploaded"`
+	Created   time.Time `json:"created_ts"`
+	Updated   time.Time `json:"updated_ts"`
+	db        *cdb      `json:"-"`
 }
 
 type Customer interface {
-    Insert() error
-    Uploaded() error
+	Insert() error
+	Uploaded() error
 }
 
 // customers is a slice of *Customer
 type customers []*customer
 
 type Customers interface {
-    Append(*customer)
-    Count() int
-    Insert() error
-    List() []*customer
+	Append(*customer)
+	Count() int
+	Insert() error
+	List() []*customer
 }
 
 // NewCustomerDB takes a sql.DB instance already opened to the correct db.
@@ -65,6 +69,9 @@ func (db *cdb) NewCustomer(id int64, firstName, lastName, email, phone string) *
 		lastName,
 		email,
 		phone,
+		false,
+		time.Now(),
+		time.Now(),
 		db,
 	}
 }
@@ -91,16 +98,16 @@ func (c *customer) Insert() error {
 
 // Append adds the supplied *Customer to the *customers set.
 func (c *customers) Append(customer *customer) {
-    *c = append(*c, customer)
+	*c = append(*c, customer)
 }
 
 // Count returns the number of *Customer in the *customers set.
 func (c *customers) Count() int {
-    return len(*c)
+	return len(*c)
 }
 
 func (c *customers) List() []*customer {
-    return *c
+	return *c
 }
 
 // Insert performs the database insert with a set of customer objects
@@ -159,8 +166,7 @@ func (db *cdb) SelectCustomersForUpload() (*customers, error) {
 		if err != nil {
 			return nil, fmt.Errorf("while scanning rows: %s", err)
 		}
-
-		*customers = append(*customers, c)
+		*customers = append(*customers, db.NewCustomer(c.Id, c.FirstName, c.LastName, c.Email, c.Phone))
 	}
 
 	return customers, nil
@@ -173,8 +179,8 @@ func (c *customer) Uploaded() error {
 		return fmt.Errorf("while starting update: %s", err)
 	}
 
-    // If returning an error Rollback the transaction, otherwise Commit it.
-    defer func() {
+	// If returning an error Rollback the transaction, otherwise Commit it.
+	defer func() {
 		switch err {
 		case nil:
 			err = tx.Commit()
