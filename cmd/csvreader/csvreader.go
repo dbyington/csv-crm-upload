@@ -88,14 +88,11 @@ func (r *reader) insertCustomers(customers database.Customers) {
 	// Insert our customer set. If we get an error it will have failed on the entire set so range through the Customer
 	// and try to insert the individual customers, logging which one(s) still fail.
 	if err := customers.Insert(); err != nil {
-		// TODO: Flesh out this messaging a bit more it needs to be descriptive about breaking down and trying
-		//  individual customers.
-		log.Print(err)
+		log.Print("error while inserting customer set, trying individual customer inserts.")
 
 		for _, c := range customers.List() {
 			if err := c.Insert(); err != nil {
-				// TODO: This message needs to include the full customer row, if the db error is not explicit enough.
-				log.Printf("ERROR inserting customer: %s", err)
+				log.Printf("ERROR inserting customer (%s %s, %s): %s", c.FirstName, c.LastName, c.Email, err)
 			} else {
 				if err := r.sender.Signal(); err != nil {
 					log.Printf("ERROR signaling CRM after inserting new customers: %s", err)
@@ -123,6 +120,10 @@ func (r *reader) parseRow() (int64, string, string, string, string, error) {
 	id, err := strconv.Atoi(row[0])
 	if err != nil {
 		return 0, "", "", "", "", fmt.Errorf("failed to parse row id: %s", err)
+	}
+
+	if row[3] == "" {
+		return 0, "", "", "", "", fmt.Errorf("failed to parse row: email cannot be empty")
 	}
 	return int64(id), row[1], row[2], row[3], row[4], nil
 }
