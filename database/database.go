@@ -3,13 +3,13 @@ package database
 //go:generate mockgen -source=database.go -destination=mock/database_mock.go -package=mock_database
 
 import (
-    "database/sql"
-    "encoding/json"
-    "fmt"
-    "time"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
 
-    // This external lib is required for postgres.
-    _ "github.com/lib/pq"
+	// This external lib is required for postgres.
+	_ "github.com/lib/pq"
 )
 
 const (

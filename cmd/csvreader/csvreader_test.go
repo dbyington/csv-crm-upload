@@ -21,12 +21,12 @@ import (
 )
 
 type buffer struct {
-    bytes.Buffer
+	bytes.Buffer
 }
 
 func (b *buffer) Close() error {
-    b.Buffer.Reset()
-    return nil
+	b.Buffer.Reset()
+	return nil
 }
 
 var (
